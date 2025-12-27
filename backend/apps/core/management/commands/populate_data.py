@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth.models import User
-from apps.core.models import Year, Month, DeliveryReportSnapshot, FinReportSnapshot
+from apps.core.models import Year, Month
+from apps.reports.models import ReportType, Report
 from decimal import Decimal
 import random
 
@@ -11,14 +12,24 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         self.stdout.write('Starting data population...')
 
+        # Get user
         user = User.objects.first()
         if not user:
             self.stdout.write(self.style.ERROR('No user found. Please create a user first.'))
             return
 
+        # Get report types
+        delivery_type = ReportType.objects.filter(slug='delivery').first()
+        financial_type = ReportType.objects.filter(slug='financial').first()
+
+        if not delivery_type or not financial_type:
+            self.stdout.write(self.style.ERROR(
+                'Report types not found. Please run: python manage.py seed_report_types'
+            ))
+            return
+
         # Clear existing data
-        DeliveryReportSnapshot.objects.all().delete()
-        FinReportSnapshot.objects.all().delete()
+        Report.objects.all().delete()
         Month.objects.all().delete()
         Year.objects.all().delete()
         self.stdout.write('Cleared existing data')
@@ -26,12 +37,15 @@ class Command(BaseCommand):
         # Generate data for each year
         for year_num in [2024, 2025, 2026]:
             self.stdout.write(f'Generating data for {year_num}...')
-            self.generate_year_data(user, year_num)
+            self.generate_year_data(user, year_num, delivery_type, financial_type)
 
+        total_reports = Report.objects.count()
         total_months = Month.objects.count()
-        self.stdout.write(self.style.SUCCESS(f'Successfully created data for {total_months} months'))
+        self.stdout.write(self.style.SUCCESS(
+            f'Successfully created {total_reports} reports for {total_months} months'
+        ))
 
-    def generate_year_data(self, user, year_num):
+    def generate_year_data(self, user, year_num, delivery_type, financial_type):
         # Create year
         year_obj, created = Year.objects.get_or_create(year=year_num, defaults={'created_by': user})
 
@@ -53,18 +67,32 @@ class Command(BaseCommand):
             seasonal_multiplier = self.get_seasonal_multiplier(month_num)
 
             # Generate Delivery Report
-            self.generate_delivery_report(month_obj, user, base_fte, base_revenue,
-                                         seasonal_multiplier, prev_month_revenue)
+            delivery_data = self.generate_delivery_data(
+                base_fte, base_revenue, seasonal_multiplier, prev_month_revenue
+            )
+            Report.objects.create(
+                report_type=delivery_type,
+                year=year_obj,
+                month=month_obj,
+                data=delivery_data,
+                uploaded_by=user
+            )
 
             # Generate Financial Report
-            self.generate_fin_report(month_obj, user, base_revenue, seasonal_multiplier,
-                                    prev_month_revenue, prev_month_salary)
+            financial_data = self.generate_financial_data(
+                base_revenue, seasonal_multiplier, prev_month_revenue, prev_month_salary
+            )
+            Report.objects.create(
+                report_type=financial_type,
+                year=year_obj,
+                month=month_obj,
+                data=financial_data,
+                uploaded_by=user
+            )
 
             # Update previous month values for growth calculations
-            delivery = DeliveryReportSnapshot.objects.get(month=month_obj)
-            fin = FinReportSnapshot.objects.get(month=month_obj)
-            prev_month_revenue = delivery.revenue
-            prev_month_salary = delivery.salary
+            prev_month_revenue = Decimal(str(delivery_data['revenue']))
+            prev_month_salary = Decimal(str(delivery_data['salary']))
 
     def get_seasonal_multiplier(self, month_num):
         """Returns seasonal business variation (0.85 to 1.15)"""
@@ -79,8 +107,8 @@ class Command(BaseCommand):
         else:
             return Decimal(str(random.uniform(0.95, 1.05)))
 
-    def generate_delivery_report(self, month_obj, user, base_fte, base_revenue,
-                                 seasonal_multiplier, prev_month_revenue):
+    def generate_delivery_data(self, base_fte, base_revenue, seasonal_multiplier, prev_month_revenue):
+        """Generate delivery report data"""
         # Team size with slight variation
         fte = base_fte + random.randint(-3, 3)
 
@@ -144,46 +172,44 @@ class Command(BaseCommand):
         avg_income_per_employee = (revenue / fte).quantize(Decimal('0.01'))
         avg_salary_prod = avg_salary_monthly
 
-        DeliveryReportSnapshot.objects.create(
-            month=month_obj,
-            total_spent=total_spent,
-            pto=pto,
-            base_hours=base_hours,
-            project_hours=project_hours,
-            billable_hours=billable_hours,
-            utilization_excl_pto=utilization_excl_pto,
-            utilization_incl_pto=utilization_incl_pto,
-            billability=billability,
-            billability_outsourcing=billability_outsourcing,
-            billability_outstaffing=billability_outstaffing,
-            billability_tm=billability_tm,
-            billability_fp=billability_fp,
-            fte=fte,
-            av_rate_h=av_rate_h,
-            revenue=revenue,
-            revenue_growth_mtm=revenue_growth_mtm,
-            salary=salary,
-            salary_growth_mtm=salary_growth_mtm,
-            av_salary_h=av_salary_h,
-            gp=gp,
-            gp_fte_h=gp_fte_h,
-            rev_prod_salary=rev_prod_salary,
-            gm_percent=gm_percent,
-            avg_revenue_outstaffing=avg_revenue_outstaffing,
-            avg_revenue_outsourcing=avg_revenue_outsourcing,
-            avg_income_outstaffing=avg_income_outstaffing,
-            avg_income_outsourcing=avg_income_outsourcing,
-            avg_revenue_tm=avg_revenue_tm,
-            avg_revenue_fp=avg_revenue_fp,
-            avg_income_tm=avg_income_tm,
-            avg_income_fp=avg_income_fp,
-            avg_income_per_employee=avg_income_per_employee,
-            avg_salary_prod=avg_salary_prod,
-            uploaded_by=user
-        )
+        return {
+            'total_spent': float(total_spent),
+            'pto': float(pto),
+            'base_hours': float(base_hours),
+            'project_hours': float(project_hours),
+            'billable_hours': float(billable_hours),
+            'utilization_excl_pto': float(utilization_excl_pto),
+            'utilization_incl_pto': float(utilization_incl_pto),
+            'billability': float(billability),
+            'billability_outsourcing': float(billability_outsourcing),
+            'billability_outstaffing': float(billability_outstaffing),
+            'billability_tm': float(billability_tm),
+            'billability_fp': float(billability_fp),
+            'fte': fte,
+            'av_rate_h': float(av_rate_h),
+            'revenue': float(revenue),
+            'revenue_growth_mtm': float(revenue_growth_mtm),
+            'salary': float(salary),
+            'salary_growth_mtm': float(salary_growth_mtm),
+            'av_salary_h': float(av_salary_h),
+            'gp': float(gp),
+            'gp_fte_h': float(gp_fte_h),
+            'rev_prod_salary': float(rev_prod_salary),
+            'gm_percent': float(gm_percent),
+            'avg_revenue_outstaffing': float(avg_revenue_outstaffing),
+            'avg_revenue_outsourcing': float(avg_revenue_outsourcing),
+            'avg_income_outstaffing': float(avg_income_outstaffing),
+            'avg_income_outsourcing': float(avg_income_outsourcing),
+            'avg_revenue_tm': float(avg_revenue_tm),
+            'avg_revenue_fp': float(avg_revenue_fp),
+            'avg_income_tm': float(avg_income_tm),
+            'avg_income_fp': float(avg_income_fp),
+            'avg_income_per_employee': float(avg_income_per_employee),
+            'avg_salary_prod': float(avg_salary_prod),
+        }
 
-    def generate_fin_report(self, month_obj, user, base_revenue, seasonal_multiplier,
-                           prev_month_revenue, prev_month_salary):
+    def generate_financial_data(self, base_revenue, seasonal_multiplier, prev_month_revenue, prev_month_salary):
+        """Generate financial report data"""
         # Revenue
         accrual_revenue = (base_revenue * seasonal_multiplier).quantize(Decimal('0.01'))
         accrual_income = (accrual_revenue * Decimal(str(random.uniform(0.95, 1.05)))).quantize(Decimal('0.01'))
@@ -223,27 +249,25 @@ class Command(BaseCommand):
         emergency_fund_to_be_saved = (after_tax_profit * emergency_fund_percent / Decimal('100')).quantize(Decimal('0.01'))
         emergency_fund_saved = (emergency_fund_to_be_saved * Decimal(str(random.uniform(0.85, 1.00)))).quantize(Decimal('0.01'))
 
-        FinReportSnapshot.objects.create(
-            month=month_obj,
-            accrual_revenue=accrual_revenue,
-            accrual_income=accrual_income,
-            cash_income=cash_income,
-            sales_commissions=sales_commissions,
-            cogs=cogs,
-            gross_profit=gross_profit,
-            gross_margin_percent=gross_margin_percent,
-            overhead=overhead,
-            production_team_fte=production_team_fte,
-            overhead_by_fte=overhead_by_fte,
-            net_margin_before_tax=net_margin_before_tax,
-            net_margin_before_tax_jira=net_margin_before_tax_jira,
-            net_margin_cash=net_margin_cash,
-            income_tax=income_tax,
-            dividends_to_be_paid=dividends_to_be_paid,
-            paid_dividends=paid_dividends,
-            dividends_percent=dividends_percent,
-            emergency_fund_to_be_saved=emergency_fund_to_be_saved,
-            emergency_fund_saved=emergency_fund_saved,
-            emergency_fund_percent=emergency_fund_percent,
-            uploaded_by=user
-        )
+        return {
+            'accrual_revenue': float(accrual_revenue),
+            'accrual_income': float(accrual_income),
+            'cash_income': float(cash_income),
+            'sales_commissions': float(sales_commissions),
+            'cogs': float(cogs),
+            'gross_profit': float(gross_profit),
+            'gross_margin_percent': float(gross_margin_percent),
+            'overhead': float(overhead),
+            'production_team_fte': production_team_fte,
+            'overhead_by_fte': float(overhead_by_fte),
+            'net_margin_before_tax': float(net_margin_before_tax),
+            'net_margin_before_tax_jira': float(net_margin_before_tax_jira),
+            'net_margin_cash': float(net_margin_cash),
+            'income_tax': float(income_tax),
+            'dividends_to_be_paid': float(dividends_to_be_paid),
+            'paid_dividends': float(paid_dividends),
+            'dividends_percent': float(dividends_percent),
+            'emergency_fund_to_be_saved': float(emergency_fund_to_be_saved),
+            'emergency_fund_saved': float(emergency_fund_saved),
+            'emergency_fund_percent': float(emergency_fund_percent),
+        }

@@ -21,7 +21,7 @@ import {
   Paper,
 } from "@mui/material";
 import { useDropzone } from "react-dropzone";
-import { Upload as UploadIcon } from "@mui/icons-material";
+import { Upload as UploadIcon, Info as InfoIcon } from "@mui/icons-material";
 import { reportsService, ReportType } from "../services/reports.service";
 import { parseCSVFile } from "../utils/csvParser";
 
@@ -122,43 +122,94 @@ export const ImportDataPage: React.FC = () => {
         Import Data
       </Typography>
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Upload CSV File
-              </Typography>
+      {loadingReportTypes ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+          <CircularProgress />
+        </Box>
+      ) : reportTypes.length === 0 ? (
+        <Box sx={{ py: 8 }}>
+          <Card sx={{
+            maxWidth: 700,
+            mx: 'auto',
+            border: '2px solid',
+            borderColor: 'info.main',
+            bgcolor: 'info.light',
+            color: 'info.contrastText'
+          }}>
+            <CardContent sx={{ p: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                <InfoIcon sx={{ fontSize: 40, color: 'info.main', flexShrink: 0 }} />
+                <Box>
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                    No Report Types Found
+                  </Typography>
+                  <Typography variant="body1" paragraph>
+                    To import data, you need to create report types on the backend first.
+                  </Typography>
+                  <Typography variant="body2" paragraph sx={{ mt: 2, mb: 1 }}>
+                    Run the following command on the backend to create default report types:
+                  </Typography>
+                  <Box
+                    sx={{
+                      bgcolor: 'grey.900',
+                      color: 'grey.100',
+                      p: 2,
+                      borderRadius: 1,
+                      fontFamily: 'monospace',
+                      fontSize: '0.875rem',
+                      mb: 2,
+                      overflowX: 'auto'
+                    }}
+                  >
+                    python manage.py seed_report_types
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    This command will create two report types: <strong>Delivery Report</strong> (📦) and <strong>Financial Report</strong> (💰)
+                    with pre-configured fields and parsing configuration.
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+      ) : (
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  Upload CSV File
+                </Typography>
 
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Year</InputLabel>
-                <Select
-                  value={year}
-                  onChange={(e) => setYear(Number(e.target.value))}
-                >
-                  {[2024, 2025, 2026].map((y) => (
-                    <MenuItem key={y} value={y}>
-                      {y}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl fullWidth sx={{ mb: 3 }}>
-                <InputLabel>Report Type</InputLabel>
-                <Select
-                  value={selectedReportType}
-                  onChange={(e) => setSelectedReportType(e.target.value)}
-                  disabled={loadingReportTypes}
-                >
-                  {Array.isArray(reportTypes) &&
-                    reportTypes.map((rt) => (
-                      <MenuItem key={rt.slug} value={rt.slug}>
-                        {rt.icon} {rt.name}
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel>Year</InputLabel>
+                  <Select
+                    value={year}
+                    onChange={(e) => setYear(Number(e.target.value))}
+                  >
+                    {[2024, 2025, 2026].map((y) => (
+                      <MenuItem key={y} value={y}>
+                        {y}
                       </MenuItem>
                     ))}
-                </Select>
-              </FormControl>
+                  </Select>
+                </FormControl>
+
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                  <InputLabel>Report Type</InputLabel>
+                  <Select
+                    value={selectedReportType}
+                    onChange={(e) => setSelectedReportType(e.target.value)}
+                    disabled={loadingReportTypes}
+                  >
+                    {Array.isArray(reportTypes) &&
+                      reportTypes.map((rt) => (
+                        <MenuItem key={rt.slug} value={rt.slug}>
+                          {rt.icon} {rt.name}
+                        </MenuItem>
+                      ))}
+                  </Select>
+                </FormControl>
 
               <Box
                 {...getRootProps()}
@@ -229,7 +280,6 @@ export const ImportDataPage: React.FC = () => {
                   selectedConfig.parsing_config.format === "transposed";
                 const fieldMappings =
                   selectedConfig.parsing_config.field_mappings || {};
-                const fieldSchema = selectedConfig.field_schema || {};
 
                 return isTransposed ? (
                   <>
@@ -493,6 +543,7 @@ export const ImportDataPage: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+      )}
     </Box>
   );
 };

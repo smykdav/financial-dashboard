@@ -22,6 +22,7 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
   Lock as LockIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { reportsService, ReportType } from '../services/reports.service';
@@ -88,9 +89,55 @@ export const ReportTypesPage: React.FC = () => {
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
           <CircularProgress />
         </Box>
+      ) : reportTypes.length === 0 ? (
+        <Box sx={{ py: 8 }}>
+          <Card sx={{
+            maxWidth: 700,
+            mx: 'auto',
+            border: '2px solid',
+            borderColor: 'info.main',
+            bgcolor: 'info.light',
+            color: 'info.contrastText'
+          }}>
+            <CardContent sx={{ p: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+                <InfoIcon sx={{ fontSize: 40, color: 'info.main', flexShrink: 0 }} />
+                <Box>
+                  <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+                    No Report Types Found
+                  </Typography>
+                  <Typography variant="body1" paragraph>
+                    To get started with the system, you need to create report types on the backend.
+                  </Typography>
+                  <Typography variant="body2" paragraph sx={{ mt: 2, mb: 1 }}>
+                    Run the following command on the backend to create default report types:
+                  </Typography>
+                  <Box
+                    sx={{
+                      bgcolor: 'grey.900',
+                      color: 'grey.100',
+                      p: 2,
+                      borderRadius: 1,
+                      fontFamily: 'monospace',
+                      fontSize: '0.875rem',
+                      mb: 2,
+                      overflowX: 'auto'
+                    }}
+                  >
+                    python manage.py seed_report_types
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    This command will create two report types: <strong>Delivery Report</strong> (📦) and <strong>Financial Report</strong> (💰)
+                    with pre-configured fields and parsing configuration.
+                  </Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
       ) : (
         <Grid container spacing={3}>
-          {Array.isArray(reportTypes) && reportTypes.map((reportType) => (
+          {reportTypes.map((reportType) => (
             <Grid item xs={12} sm={6} lg={4} key={reportType.id}>
               <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <CardActionArea onClick={() => navigate(`/report-types/${reportType.slug}`)}>

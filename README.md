@@ -56,12 +56,12 @@ cp .env.example .env
 # Run migrations
 python manage.py migrate
 
-# Create superuser
-python manage.py createsuperuser
+# Create superuser (creates admin/admin123 automatically)
+python manage.py create_default_superuser
 
-# (Optional) Generate sample data
+# (Optional) Setup report types and generate sample data
+python manage.py seed_report_types
 python manage.py populate_data
-python manage.py migrate_to_reports
 
 # Start backend
 python manage.py runserver
@@ -89,9 +89,10 @@ Frontend will be available at `http://localhost:5173`
 
 ### Default Login Credentials
 
-After creating a superuser, use those credentials. Or if you used the default script:
+If you used `create_default_superuser` command:
 
 - **Username**: admin
+- **Email**: admin@example.com
 - **Password**: admin123
 
 ## Tech Stack
@@ -153,8 +154,8 @@ npm run lint
 **Generate sample data:**
 ```bash
 cd backend
+python manage.py seed_report_types
 python manage.py populate_data
-python manage.py migrate_to_reports
 ```
 
 **Reset database:**
@@ -162,7 +163,9 @@ python manage.py migrate_to_reports
 cd backend
 rm db.sqlite3
 python manage.py migrate
-python manage.py createsuperuser
+python manage.py create_default_superuser
+python manage.py seed_report_types
+python manage.py populate_data
 ```
 
 ### Building for Production
@@ -260,8 +263,8 @@ VITE_API_URL=https://your-backend-api.com
 - Check CORS settings in backend `.env`
 
 ### No data showing
-- Run: `python manage.py populate_data`
-- Then: `python manage.py migrate_to_reports`
+- Run: `python manage.py seed_report_types`
+- Then: `python manage.py populate_data`
 - Login with your credentials
 
 ## Project Status
